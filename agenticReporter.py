@@ -18,6 +18,8 @@ from langsmith import traceable
 import configuration
 
 import logging
+import docx
+import os
 
 # ------------------------------------------------------------
 # Logging Setup
@@ -172,7 +174,6 @@ def tavily_search(query):
 
 @traceable
 async def tavily_search_async(search_queries, tavily_topic, tavily_days):
-
     search_tasks = []
     for query in search_queries:
         if tavily_topic == "news":
@@ -373,7 +374,6 @@ For Conclusion/Summary:
 # Graph nodes
 
 async def generate_report_plan(state: ReportState, config: RunnableConfig):
-
     # Inputs
     topic = state["topic"]
 
@@ -422,7 +422,6 @@ async def generate_report_plan(state: ReportState, config: RunnableConfig):
 
 
 def generate_queries(state: SectionState, config: RunnableConfig):
-
     # Get state
     section = state["section"]
 
@@ -445,7 +444,6 @@ def generate_queries(state: SectionState, config: RunnableConfig):
 
 
 async def search_web(state: SectionState, config: RunnableConfig):
-
     # Get state
     search_queries = state["search_queries"]
 
@@ -465,7 +463,6 @@ async def search_web(state: SectionState, config: RunnableConfig):
 
 
 def write_section(state: SectionState):
-
     # Get state
     section = state["section"]
     source_str = state["source_str"]
@@ -509,7 +506,6 @@ def initiate_section_writing(state: ReportState):
 
 
 def write_final_sections(state: SectionState):
-
     # Get state
     section = state["section"]
     completed_report_sections = state["report_sections_from_research"]
@@ -531,7 +527,6 @@ def write_final_sections(state: SectionState):
 
 
 def gather_completed_sections(state: ReportState):
-
     # List of completed sections
     completed_sections = state["completed_sections"]
 
@@ -542,7 +537,6 @@ def gather_completed_sections(state: ReportState):
 
 
 def initiate_final_section_writing(state: ReportState):
-
     # Kick off section writing in parallel via Send() API for any sections that do not require research
     return [
         Send("write_final_sections",
@@ -553,7 +547,6 @@ def initiate_final_section_writing(state: ReportState):
 
 
 def compile_final_report(state: ReportState):
-
     # Get sections
     sections = state["sections"]
     completed_sections = {s.name: s.content for s in state["completed_sections"]}
@@ -585,14 +578,17 @@ builder.add_edge("compile_final_report", END)
 
 graph = builder.compile()
 
+
 # ------------------------------------------------------------
 # Execution
 if __name__ == "__main__":
     async def main():
-        logger.info("Initializing report generation...")
 
-        # Input data for the graph
-        input_data = {"topic": "Predicting the evolution of the technology sector into 2030"}  # Replace with topic
+        # Ask the user for the topic via the console
+        topic = input("Please enter your topic: ")
+        input_data = {"topic": topic}
+
+        logger.info("Initializing report generation...")
 
         # Define configuration using `configuration.Configuration`
         config = configuration.Configuration(
@@ -610,11 +606,24 @@ if __name__ == "__main__":
             result = await graph.ainvoke(input_data, config_dict)
             logger.info("Report generation completed successfully.")
 
+            yn = input("Would you like a document version? (y/n) ")
+
+            if yn == "y" or yn == "yes" or yn == "Y" or yn == "Yes":
+                # Create a Word document using python-docx
+                doc = docx.Document()
+                doc.add_paragraph(result["final_report"])
+                # Save the document to a file
+                doc.save(topic + ".docx")
+
             # Print the final report output
             print(result["final_report"])
+
+            logger.info("Word document 'final_report.docx' created successfully.")
+
         except Exception as e:
             # Log any errors that occur during execution
             logger.error(f"An error occurred during report generation: {e}")
+
 
     # Run the async main function
     asyncio.run(main())
